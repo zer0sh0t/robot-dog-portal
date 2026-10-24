@@ -1,0 +1,123 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>striker · robot dog</title>
+<style>
+:root{--bg:#0b0e14;--panel:#141a24;--line:#232c3b;--txt:#dfe7f2;--dim:#7b8aa0;--accent:#4cc2ff;--ok:#39d98a;--warn:#ffb454;--bad:#ff5c6c}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.45 -apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header b{font-size:16px}#conn{margin-left:auto;font-size:13px;color:var(--dim)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:5px;vertical-align:middle}
+.dot.on{background:var(--ok)}
+.wrap{max-width:820px;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.card h2{margin:0;padding:9px 13px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line)}
+.card .body{padding:11px 13px}
+#cam{width:100%;display:block;background:#000;aspect-ratio:4/3;object-fit:contain}
+.tel{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tel div{background:#0d121b;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.tel .k{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+.tel .v{font-size:18px;font-weight:600}
+#feed{max-height:46vh;overflow:auto;display:flex;flex-direction:column-reverse}
+.msg{padding:7px 13px;border-bottom:1px solid #1a212e;font-size:14px}
+.msg .t{color:var(--dim);font-size:11px;margin-right:7px}
+.msg.cmd{color:var(--accent)}.msg.ESTOP{color:var(--bad);font-weight:700}.msg.info{color:var(--dim)}.msg.striker{color:#8be9fd;font-weight:600}.msg.harin{color:#f1fa8c}
+#estopbar{position:sticky;bottom:0;padding:12px;background:linear-gradient(transparent,var(--bg) 30%)}
+#estop{width:100%;padding:20px;font-size:22px;font-weight:800;letter-spacing:.05em;color:#fff;background:var(--bad);border:none;border-radius:14px;box-shadow:0 4px 0 #a81b2a;cursor:pointer}
+#estop:active{transform:translateY(3px);box-shadow:none}
+#estop.tripped{background:#5a1a22;box-shadow:0 4px 0 #3a1016}
+#clear{display:none;width:100%;margin-top:8px;padding:11px;background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:10px}
+</style></head><body>
+<header><b>striker</b><span style="color:var(--dim)">· robot dog control</span>
+  <span id="conn"><span class="dot" id="cdot"></span><span id="ctxt">connecting…</span></span></header>
+<div class="wrap">
+  <div class="card"><h2>Camera</h2><img id="cam" src="/camstream" alt="camera"></div>
+  <div class="card"><h2>Telemetry</h2><div class="body"><div class="tel">
+    <div><div class="k">Battery</div><div class="v" id="batt">–</div></div>
+    <div><div class="k">Robot link</div><div class="v" id="link">–</div></div>
+    <div><div class="k">Last command</div><div class="v" id="lastcmd" style="font-size:14px">–</div></div>
+    <div><div class="k">E-stop</div><div class="v" id="estat" style="font-size:14px">–</div></div>
+  </div></div></div>
+  <div class="card"><h2>Voice</h2><div class="body">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button id="talk" onclick="toggleMic()" style="flex:1;min-width:130px;padding:14px;border:none;border-radius:10px;background:#1c74d6;color:#fff;font-size:16px;font-weight:700">&#127897; Talk: OFF</button>
+      
+    </div>
+    <div style="margin-top:9px;font-size:13px;color:var(--dim)" id="vstat">Tap Talk to speak; sound unlocks on first tap.</div>
+
+  </div></div>
+  <div class="card"><h2>Striker · thinking &amp; commands</h2><div id="feed"></div></div>
+</div>
+<div id="estopbar">
+  <button id="estop" onclick="fire()">■ E-STOP</button>
+  <button id="clear" onclick="clr()">clear e-stop</button>
+</div>
+<script>
+let spokenMax=-1;
+async function tick(){
+  try{
+    const s=await (await fetch('/state.json',{cache:'no-store'})).json();
+    document.getElementById('cdot').className='dot on';
+    document.getElementById('ctxt').textContent='portal live';
+    const t=s.telemetry||{};
+    document.getElementById('batt').textContent=t.battery_v?(t.battery_v+' V'):'–';
+    document.getElementById('link').textContent=t.online?'online':'offline';
+    document.getElementById('estat').textContent=s.estop?'TRIPPED':'clear';
+    // feed
+    const cmds=s.feed.filter(m=>m.kind==='cmd');
+    document.getElementById('lastcmd').textContent=cmds.length?cmds[cmds.length-1].text:'–';
+    const feed=document.getElementById('feed');feed.innerHTML='';
+    s.feed.slice(-120).forEach(m=>{
+      const d=document.createElement('div');d.className='msg '+(m.kind||'');
+      const ts=new Date((m.ts||0)*1000).toLocaleTimeString();
+      d.innerHTML='<span class="t">'+ts+'</span>'+(m.text||'').replace(/</g,'&lt;');
+      feed.appendChild(d);
+    });
+    // speak new say items
+    if(!window._primed){ (s.say||[]).forEach(it=>{ if(it.id>spokenMax) spokenMax=it.id; }); window._primed=true; }
+    else { (s.say||[]).forEach(it=>{ if(it.id>spokenMax){ spokenMax=it.id;
+        if(it.audio){ try{const a=new Audio('/audio/'+it.id+'.wav?'+Date.now());a.play().catch(()=>speak(it.text));}catch(e){speak(it.text);} }
+        else speak(it.text);
+      } }); }
+    const b=document.getElementById('estop');
+    b.classList.toggle('tripped',!!s.estop);
+    b.textContent=s.estop?'■ E-STOPPED':'■ E-STOP';
+    document.getElementById('clear').style.display=s.estop?'block':'none';
+  }catch(e){document.getElementById('cdot').className='dot';document.getElementById('ctxt').textContent='portal unreachable';}
+}
+async function fire(){navigator.vibrate&&navigator.vibrate(80);await fetch('/estop',{method:'POST'});tick();}
+async function clr(){await fetch('/estop/clear',{method:'POST'});tick();}
+
+// ---- VOICE (Piper server-side; browser TTS is fallback only) ----
+function speak(text){ try{const u=new SpeechSynthesisUtterance(text);u.pitch=0.8;u.rate=0.95;speechSynthesis.speak(u);}catch(e){} }
+async function playId(id){ try{const a=new Audio('/audio/'+id+'.wav?'+Date.now()); await a.play(); }catch(e){} }
+async function testVoice(){ await tryVoice(''); }
+let micOn=false, rec=null;
+function unlockAudio(){ if(window._au)return; window._au=true;
+  try{const a=new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=');a.play().catch(()=>{});}catch(e){}
+}
+function toggleMic(){ unlockAudio();
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const btn=document.getElementById('talk'); const st=document.getElementById('vstat');
+  if(!SR){ st.textContent='Mic not supported by this browser.'; return; }
+  if(!window.isSecureContext){ st.textContent='Mic blocked - page must be HTTPS.'; return; }
+  if(micOn){ micOn=false; try{rec&&rec.stop();}catch(e){} btn.textContent='\uD83C\uDF99 Talk: OFF'; st.textContent='mic off'; return; }
+  try{
+    rec=new SR(); rec.continuous=true; rec.interimResults=false; rec.lang='en-US';
+    rec.onresult=e=>{ const t=e.results[e.results.length-1][0].transcript.trim();
+      if(t){ st.textContent='heard: '+t; fetch('/heard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})}); } };
+    rec.onerror=ev=>{ st.textContent='mic error: '+ev.error; };
+    rec.onend=()=>{ if(micOn){ try{rec.start();}catch(e){} } };
+    rec.start(); micOn=true; btn.textContent='\uD83C\uDF99 Talk: ON (listening)'; st.textContent='listening...';
+  }catch(e){ st.textContent='mic start failed: '+e; }
+}
+async function tryVoice(preset){
+  const st=document.getElementById('vstat'); st.textContent='synthesizing'+(preset?(' voice '+preset):'')+'...';
+  try{
+    const r=await fetch('/speak_test'+(preset?('?preset='+preset):''),{method:'POST'});
+    const j=await r.json();
+    if(j.id!=null){ spokenMax=Math.max(spokenMax,j.id); await playId(j.id); st.textContent=preset?('playing voice '+preset):'playing Piper voice'; }
+  }catch(e){ st.textContent='synth failed: '+e; }
+}
+setInterval(tick,600);tick();
+
+</script></body></html>

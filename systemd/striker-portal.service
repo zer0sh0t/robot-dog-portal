@@ -1,0 +1,16 @@
+[Unit]
+Description=Striker robot-dog mission-control portal (HTTPS)
+After=network.target
+[Service]
+Type=simple
+WorkingDirectory=/home/lattepanda/Documents/striker/projects/robot-dog/portal
+Environment=PORTAL_PORT=8443
+Environment=PORTAL_CERT=/home/lattepanda/Documents/striker/projects/robot-dog/portal/runtime/cert.pem
+Environment=PORTAL_KEY=/home/lattepanda/Documents/striker/projects/robot-dog/portal/runtime/key.pem
+Environment=PUPPY_CAM_TOPIC=/usb_cam/image_raw
+Environment=PATH=/home/lattepanda/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/python3 /home/lattepanda/Documents/striker/projects/robot-dog/portal/server.py
+Restart=always
+RestartSec=3
+[Install]
+WantedBy=default.target
