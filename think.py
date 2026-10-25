@@ -11,3 +11,4 @@ if args and args[0] in ("--cmd","--info","--think"): kind=args.pop(0)[2:]
 text=" ".join(args)
 open(os.path.join(RT,"think.jsonl"),"a").write(json.dumps({"ts":time.time(),"kind":kind,"text":text})+"\n")
 print("logged:",kind,text)
+

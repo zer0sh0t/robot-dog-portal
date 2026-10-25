@@ -1,77 +1,250 @@
-<!doctype html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>striker · robot dog</title>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SafeScout · Striker</title>
 <style>
-:root{--bg:#0b0e14;--panel:#141a24;--line:#232c3b;--txt:#dfe7f2;--dim:#7b8aa0;--accent:#4cc2ff;--ok:#39d98a;--warn:#ffb454;--bad:#ff5c6c}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.45 -apple-system,Segoe UI,Roboto,sans-serif}
-header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
-header b{font-size:16px}#conn{margin-left:auto;font-size:13px;color:var(--dim)}
-.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:5px;vertical-align:middle}
-.dot.on{background:var(--ok)}
-.wrap{max-width:820px;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.card h2{margin:0;padding:9px 13px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line)}
-.card .body{padding:11px 13px}
-#cam{width:100%;display:block;background:#000;aspect-ratio:4/3;object-fit:contain}
-.tel{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.tel div{background:#0d121b;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
-.tel .k{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
-.tel .v{font-size:18px;font-weight:600}
-#feed{max-height:46vh;overflow:auto;display:flex;flex-direction:column-reverse}
-.msg{padding:7px 13px;border-bottom:1px solid #1a212e;font-size:14px}
-.msg .t{color:var(--dim);font-size:11px;margin-right:7px}
-.msg.cmd{color:var(--accent)}.msg.ESTOP{color:var(--bad);font-weight:700}.msg.info{color:var(--dim)}.msg.striker{color:#8be9fd;font-weight:600}.msg.harin{color:#f1fa8c}
-#estopbar{position:sticky;bottom:0;padding:12px;background:linear-gradient(transparent,var(--bg) 30%)}
-#estop{width:100%;padding:20px;font-size:22px;font-weight:800;letter-spacing:.05em;color:#fff;background:var(--bad);border:none;border-radius:14px;box-shadow:0 4px 0 #a81b2a;cursor:pointer}
-#estop:active{transform:translateY(3px);box-shadow:none}
-#estop.tripped{background:#5a1a22;box-shadow:0 4px 0 #3a1016}
-#clear{display:none;width:100%;margin-top:8px;padding:11px;background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:10px}
-</style></head><body>
-<header><b>striker</b><span style="color:var(--dim)">· robot dog control</span>
-  <span id="conn"><span class="dot" id="cdot"></span><span id="ctxt">connecting…</span></span></header>
-<div class="wrap">
-  <div class="card"><h2>Camera</h2><img id="cam" src="/camstream" alt="camera"></div>
-  <div class="card"><h2>Telemetry</h2><div class="body"><div class="tel">
-    <div><div class="k">Battery</div><div class="v" id="batt">–</div></div>
-    <div><div class="k">Robot link</div><div class="v" id="link">–</div></div>
-    <div><div class="k">Last command</div><div class="v" id="lastcmd" style="font-size:14px">–</div></div>
-    <div><div class="k">E-stop</div><div class="v" id="estat" style="font-size:14px">–</div></div>
-  </div></div></div>
-  <div class="card"><h2>Voice</h2><div class="body">
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button id="talk" onclick="toggleMic()" style="flex:1;min-width:130px;padding:14px;border:none;border-radius:10px;background:#1c74d6;color:#fff;font-size:16px;font-weight:700">&#127897; Talk: OFF</button>
-      
-    </div>
-    <div style="margin-top:9px;font-size:13px;color:var(--dim)" id="vstat">Tap Talk to speak; sound unlocks on first tap.</div>
-
-  </div></div>
-  <div class="card"><h2>Striker · thinking &amp; commands</h2><div id="feed"></div></div>
-</div>
-<div id="estopbar">
-  <button id="estop" onclick="fire()">■ E-STOP</button>
-  <button id="clear" onclick="clr()">clear e-stop</button>
-</div>
+:root{--bg:#f4f5f6;--panel:#fff;--line:#d9dde1;--txt:#20262c;--dim:#626b74;--ok:#384b40;--bad:#b52e28;--warn:#98620b}
+*{box-sizing:border-box} [hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 Arial,sans-serif}
+header{height:56px;padding:0 24px;border-bottom:1px solid var(--line);background:var(--panel);display:flex;align-items:center;gap:16px}
+header b{font-size:17px}header span{color:var(--dim)}.badge{font-size:12px;border:1px solid var(--line);padding:2px 7px;border-radius:3px}
+#conn{margin-left:auto;font-size:12px}.wrap{max-width:1120px;margin:0 auto;padding:20px 24px;display:grid;gap:14px}
+h2{font-size:13px;font-weight:600;margin:0;padding:10px 14px;border-bottom:1px solid var(--line)}
+p{margin:4px 0}.card,details{background:var(--panel);border:1px solid var(--line);border-radius:4px}.body{padding:12px 14px}
+.evidence{display:grid;grid-template-columns:1fr 1fr;gap:14px}.camera-box{height:210px;display:flex;align-items:center;justify-content:center;background:#eef0f2;color:var(--dim)}
+#cam{height:210px;width:100%;object-fit:contain}#trend{width:100%;height:180px;display:block}.chart-note{font-size:12px;color:var(--dim);padding:0 14px 10px}
+.status-top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 14px}#hazard-status{font-size:20px}#hazard-message{color:var(--dim)}#action-line{font-weight:600}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line)}.metrics>div{padding:10px 14px}.metrics>div+div{border-left:1px solid var(--line)}.k{font-size:12px;color:var(--dim)}.v{font-size:18px;font-variant-numeric:tabular-nums}
+#feed{max-height:112px;overflow:auto}.msg{display:flex;gap:16px;padding:6px 14px;border-bottom:1px solid #edf0f2;font-size:13px}.t{color:var(--dim);font-variant-numeric:tabular-nums;flex-shrink:0}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:14px}summary{cursor:pointer;padding:10px 14px;font-size:13px;font-weight:600}details .body{padding-top:0;color:var(--dim);font-size:13px}button,select{font:inherit;color:var(--txt);background:white;border:1px solid #bec5cc;border-radius:3px;padding:6px 10px}button{cursor:pointer}button:hover{background:#edf0f2}button[aria-pressed=true]{border-color:#36414b;background:#e8ecef}.controls{display:flex;gap:8px;flex-wrap:wrap}label{display:block;margin-top:10px}#hazard-pending{font-size:12px;color:var(--dim);margin-top:8px}#estopbar{padding:12px 24px}#estop{color:var(--bad)}
+@media(max-width:700px){header{padding:0 16px;gap:10px}.wrap{padding:14px 16px}.evidence{gap:10px}.camera-box,#cam{height:170px}#trend{height:140px}.status-top{align-items:flex-start;flex-direction:column;gap:8px}.panels{grid-template-columns:1fr}.v{font-size:16px}}
+@media(max-width:430px){.evidence{grid-template-columns:1fr}.metrics>div{padding:8px}.wrap{padding:12px}}
+</style>
+</head>
+<body>
+<header><b>SafeScout</b><span>Striker · PuppyPi</span><span id="demo-badge" class="badge" hidden>Demo</span><span id="conn"><span id="cdot"></span><span id="ctxt">Connecting…</span></span></header>
+<main class="wrap">
+  <div class="evidence">
+    <section class="card"><h2>Camera</h2><div class="camera-box"><img id="cam" alt="Robot camera" hidden><span id="camera-empty">No image available</span></div></section>
+    <section class="card"><h2>Sensor trend <span style="color:var(--dim);font-weight:400">· V</span></h2>
+      <svg id="trend" viewBox="0 0 480 180" role="img" aria-label="Recent sensor voltage readings">
+        <g stroke="#e0e3e6" stroke-width="1"><path d="M42 25H460 M42 85H460 M42 145H460"/></g>
+        <g fill="#626b74" font-family="Arial" font-size="12"><text x="6" y="29">0.75</text><text x="6" y="89">0.55</text><text x="6" y="149">0.35</text></g>
+        <polyline id="trend-line" fill="none" stroke="#57636e" stroke-width="2" points=""/>
+      </svg><div class="chart-note" id="trend-note">Waiting for sensor readings</div>
+    </section>
+  </div>
+  <section class="card" id="scout" hidden aria-live="polite">
+    <div class="status-top"><div><strong id="hazard-status">Normal</strong><p id="hazard-message"></p></div><p id="action-line">Recommended action: <span id="hazard-action"></span></p></div>
+    <div class="metrics"><div><div class="k">Current reading</div><div id="reading" class="v">—</div></div><div><div class="k">From baseline</div><div id="change" class="v">—</div></div><div><div class="k">Last update</div><div id="last-update" class="v">—</div></div></div>
+  </section>
+  <section class="card"><h2>Recent events</h2><div id="feed"></div></section>
+  <div class="panels">
+    <details id="demo-controls" hidden open><summary>Demo controls</summary><div class="body"><div class="controls">
+      <button data-scenario="OK" onclick="demoInput({scenario:'OK',image:'clear'})">Normal</button>
+      <button data-scenario="ALARM" onclick="demoInput({scenario:'ALARM',image:'smoke'})">Elevated reading</button>
+      <button data-scenario="FAULT" onclick="demoInput({scenario:'FAULT'})">Signal lost</button>
+    </div><div id="hazard-pending" role="status"></div></div></details>
+    <details><summary>Details</summary><div class="body">
+      <p>Smoke: <span id="smoke-value">—</span> · <span id="smoke-status">No reading</span></p>
+      <p>Temperature: <span id="temperature-value">—</span> · <span id="temperature-status">No reading</span></p>
+      <p>Detector alert: <span id="fire_alert-status">Unavailable</span> · Detector fault: <span id="fire_sensor_fault-status">Unavailable</span></p>
+      <p>Camera candidate: <span id="camera-status">Unavailable</span> · Smoke comparator: <span id="smoke_detected-status">Unavailable</span></p>
+      <p id="hazard-values"></p><p id="hazard-explanation"></p><p id="hazard-engine"></p>
+      <div id="demo-details" hidden><p>Sensor readings and image annotations are simulated. No camera image is available. Recommendations are not sent to the robot.</p><p>Any manually controlled movement video illustrates the intended response, not autonomous detection.</p>
+      <label>Image evidence fixture <select id="demo-image" onchange="demoInput({image:this.value})"><option value="clear">No smoke annotation</option><option value="smoke">Possible smoke annotation</option></select></label></div>
+      <p>Battery: <span id="batt">—</span> · Robot link: <span id="link">Unknown</span></p>
+      <p>Last command: <span id="lastcmd">—</span> · E-stop: <span id="estat">—</span></p>
+    </div></details>
+  </div>
+  <section class="card" id="voice-card" hidden><h2>Voice</h2><div class="body"><button id="talk" onclick="toggleMic()">Talk: OFF</button><p id="vstat">Tap Talk to speak.</p></div></section>
+</main>
+<div id="estopbar" hidden><button id="estop" onclick="fire()">■ E-STOP</button><button id="clear" onclick="clr()">Clear e-stop</button></div>
 <script>
 let spokenMax=-1;
+let demoMode = false;
+
+function setText(id, text) {
+  document.getElementById(id).textContent = text;
+}
+
+async function demoInput(input) {
+  try {
+    const response = await fetch('/demo', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw new Error('Demo input rejected');
+    await tick();
+  } catch (error) {
+    setText('hazard-pending', error.message);
+  }
+}
+
+const statusLabels = {OK: 'Normal', ALARM: 'Alert', FAULT: 'Sensor offline'};
+const samples = [];
+const events = [];
+let previousStatus = null;
+let previousSample = null;
+
+function renderSensors(sensors, reachable = true) {
+  for (const name of ['smoke', 'temperature']) {
+    const reading = sensors?.[name];
+    const fresh = reachable && reading?.fresh;
+    const precision = name === 'smoke' && reading?.unit === 'V' ? 2 : 1;
+    setText(name + '-value', fresh && Number.isFinite(reading.value)
+      ? reading.value.toFixed(precision) + ' ' + (reading.unit || '') : '—');
+    setText(name + '-status', !reachable ? 'Connection lost'
+      : !reading || reading.value == null ? 'No reading'
+      : fresh ? `Updated ${reading.age_s}s ago` : 'Stale');
+  }
+  for (const name of ['fire_alert', 'camera', 'smoke_detected', 'fire_sensor_fault']) {
+    const reading = sensors?.[name];
+    setText(name + '-status', !reachable ? 'Connection lost'
+      : !reading?.fresh ? 'Unavailable'
+      : reading.value ? 'Reported' : 'Not reported');
+  }
+}
+
+function setupDemo() {
+  demoMode = true;
+  document.title = 'SafeScout · Striker';
+  for (const id of ['scout', 'demo-badge', 'demo-controls', 'demo-details']) {
+    document.getElementById(id).hidden = false;
+  }
+}
+
+function showHazardStatus(value) {
+  const colors = {OK: 'var(--ok)', ALARM: 'var(--bad)', FAULT: 'var(--warn)'};
+  const status = document.getElementById('hazard-status');
+  status.textContent = statusLabels[value];
+  status.style.color = colors[value];
+}
+
+function logStatus(status, message) {
+  if (status === previousStatus) return;
+  previousStatus = status;
+  events.unshift({time: new Date(), text: `${statusLabels[status]} — ${message}`});
+  events.splice(5);
+  const feed = document.getElementById('feed');
+  feed.replaceChildren();
+  for (const event of events) {
+    const row = document.createElement('div');
+    row.className = 'msg';
+    const time = document.createElement('span');
+    time.className = 't';
+    time.textContent = event.time.toLocaleTimeString([], {hour12: false});
+    const text = document.createElement('span');
+    text.textContent = event.text;
+    row.append(time, text);
+    feed.append(row);
+  }
+}
+
+function drawTrend(hazard) {
+  // Keep old readings visible during an outage, without inventing new samples.
+  if (Number.isFinite(hazard.reading_v) && hazard.status !== 'FAULT' && hazard.sample_id !== previousSample) {
+    previousSample = hazard.sample_id;
+    samples.push(hazard.reading_v);
+    if (samples.length > 60) samples.shift();
+  }
+  const points = samples.map((value, index) => {
+    const x = 42 + index * 418 / 59;
+    const y = 145 - (value - 0.35) * 300;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  document.getElementById('trend-line').setAttribute('points', points.join(' '));
+  setText('trend-note', !Number.isFinite(hazard.reading_v) ? 'No voltage samples available' : hazard.status === 'FAULT'
+    ? 'Updates stopped · last readings retained'
+    : `${samples.length} recent readings · this session`);
+}
+
+function showDemo(state) {
+  if (state.demo && !demoMode) setupDemo();
+  document.getElementById("scout").hidden = false;
+  const hazard = state.hazard;
+  const offline = hazard.status === 'FAULT';
+  const messages = {
+    OK: 'No elevated reading detected.',
+    ALARM: 'Sensor reading above threshold.',
+    FAULT: 'Sensor data unavailable.',
+  };
+  showHazardStatus(hazard.status);
+  setText('ctxt', 'Dashboard connected');
+  const message = state.demo ? messages[hazard.status] : hazard.message;
+  setText('hazard-message', message);
+  setText('hazard-action', hazard.proposed_action === 'STOP_AND_REPORT'
+    ? 'Stop and inspect.' : hazard.proposed_action === 'MONITOR_AND_REPORT'
+    ? 'Inspect image evidence.' : 'Continue monitoring.');
+  setText('reading', offline || !Number.isFinite(hazard.reading_v) ? '—' : `${hazard.reading_v.toFixed(2)} V`);
+  const change = (hazard.reading_v / hazard.baseline_v - 1) * 100;
+  setText('change', offline || !hazard.baseline_v ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`);
+  setText('last-update', hazard.age_s == null ? 'Unavailable' : `${hazard.age_s.toFixed(1)} s ago`);
+  setText('hazard-values', `Fixed baseline: ${(hazard.baseline_v?.toFixed(2) ?? 'not configured')} V · Threshold: ${(hazard.threshold_v?.toFixed(4) ?? 'not configured')} V · Raw reading: ${hazard.reading_v ?? 'unavailable'} V`);
+  setText('hazard-explanation', hazard.explanation);
+  setText('hazard-engine', hazard.interpreter);
+  setText('hazard-pending', state.scenario === 'FAULT' && !offline
+    ? 'Signal stopped. Checking freshness…' : '');
+  document.getElementById('demo-image').value = hazard.image_url?.includes('smoke') ? 'smoke' : 'clear';
+  document.querySelectorAll('[data-scenario]').forEach(button => {
+    button.setAttribute('aria-pressed', button.dataset.scenario === state.scenario);
+  });
+  if (state.demo) {
+    setText('link', 'Not connected');
+    setText('estat', 'No command sent');
+    setText('lastcmd', 'None');
+  }
+  drawTrend(hazard);
+  logStatus(hazard.status, message);
+}
+
+function showDemoUnavailable() {
+  showHazardStatus('FAULT');
+  setText('hazard-message', 'Sensor data unavailable.');
+  setText('hazard-action', 'Stop and inspect.');
+  setText('reading', '—');
+  setText('change', '—');
+  setText('last-update', 'Unavailable');
+  setText('hazard-pending', '');
+  setText('trend-note', 'Updates stopped · last readings retained');
+  logStatus('FAULT', 'Sensor data unavailable.');
+}
 async function tick(){
   try{
-    const s=await (await fetch('/state.json',{cache:'no-store'})).json();
+    const response = await fetch('/state.json', {cache:'no-store', signal:AbortSignal.timeout(4000)});
+    if (!response.ok) throw new Error('State request failed');
+    const s = await response.json();
+    renderSensors(s.sensors);
     document.getElementById('cdot').className='dot on';
-    document.getElementById('ctxt').textContent='portal live';
+    document.getElementById('ctxt').textContent='Dashboard connected';
     const t=s.telemetry||{};
     document.getElementById('batt').textContent=t.battery_v?(t.battery_v+' V'):'–';
     document.getElementById('link').textContent=t.online?'online':'offline';
     document.getElementById('estat').textContent=s.estop?'TRIPPED':'clear';
+    if (s.hazard) showDemo(s);
+    if (s.demo) return;
+    document.getElementById('voice-card').hidden = false;
+    document.getElementById('estopbar').hidden = false;
+    const camera = document.getElementById('cam');
+    if (!camera.getAttribute('src')) camera.src = '/camstream';
+    camera.onload = () => { camera.hidden = false; document.getElementById('camera-empty').hidden = true; };
+    camera.onerror = () => { camera.hidden = true; document.getElementById('camera-empty').hidden = false; };
     // feed
     const cmds=s.feed.filter(m=>m.kind==='cmd');
     document.getElementById('lastcmd').textContent=cmds.length?cmds[cmds.length-1].text:'–';
-    const feed=document.getElementById('feed');feed.innerHTML='';
+    const feed=document.getElementById('feed');
+    if (!s.hazard) {
+    feed.innerHTML='';
     s.feed.slice(-120).forEach(m=>{
       const d=document.createElement('div');d.className='msg '+(m.kind||'');
       const ts=new Date((m.ts||0)*1000).toLocaleTimeString();
       d.innerHTML='<span class="t">'+ts+'</span>'+(m.text||'').replace(/</g,'&lt;');
       feed.appendChild(d);
     });
+    }
     // speak new say items
     if(!window._primed){ (s.say||[]).forEach(it=>{ if(it.id>spokenMax) spokenMax=it.id; }); window._primed=true; }
     else { (s.say||[]).forEach(it=>{ if(it.id>spokenMax){ spokenMax=it.id;
@@ -82,7 +255,12 @@ async function tick(){
     b.classList.toggle('tripped',!!s.estop);
     b.textContent=s.estop?'■ E-STOPPED':'■ E-STOP';
     document.getElementById('clear').style.display=s.estop?'block':'none';
-  }catch(e){document.getElementById('cdot').className='dot';document.getElementById('ctxt').textContent='portal unreachable';}
+  } catch (error) {
+    document.getElementById('cdot').className = 'dot';
+    setText('ctxt', 'portal unreachable');
+    renderSensors(null, false);
+    if (!document.getElementById("scout").hidden) showDemoUnavailable();
+  }
 }
 async function fire(){navigator.vibrate&&navigator.vibrate(80);await fetch('/estop',{method:'POST'});tick();}
 async function clr(){await fetch('/estop/clear',{method:'POST'});tick();}
@@ -118,6 +296,8 @@ async function tryVoice(preset){
     if(j.id!=null){ spokenMax=Math.max(spokenMax,j.id); await playId(j.id); st.textContent=preset?('playing voice '+preset):'playing Piper voice'; }
   }catch(e){ st.textContent='synth failed: '+e; }
 }
-setInterval(tick,600);tick();
+async function poll() { await tick(); setTimeout(poll, 600); }
+poll();
 
 </script></body></html>
+

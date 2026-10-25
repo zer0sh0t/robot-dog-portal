@@ -1,0 +1,22 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const html = fs.readFileSync('index.html', 'utf8');
+const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map(match => [match[1], {textContent: ''}]));
+const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+new vm.Script(script); // Check the entire dashboard's syntax without starting requests.
+const renderer = script.slice(script.indexOf('function renderSensors('), script.indexOf('function setupDemo('));
+const context = {setText(id, text) { elements.get(id).textContent = text; }};
+vm.createContext(context);
+vm.runInContext(renderer, context);
+const reading = (value, unit = '') => ({value, unit, fresh: true, age_s: 0});
+context.renderSensors({smoke: reading(0.46, 'V'), camera: reading(true)});
+assert.equal(elements.get('smoke-value').textContent, '0.46 V');
+assert.equal(elements.get('camera-status').textContent, 'Reported');
+assert.equal(elements.get('temperature-value').textContent, '—');
+context.renderSensors({smoke: {value: 0.46, fresh: false}});
+assert.equal(elements.get('smoke-status').textContent, 'Stale');
+context.renderSensors(null, false);
+assert.equal(elements.get('smoke-status').textContent, 'Connection lost');
+assert.equal(elements.get('fire_sensor_fault-status').textContent, 'Connection lost');
+console.log('Dashboard rendering and syntax checks passed');

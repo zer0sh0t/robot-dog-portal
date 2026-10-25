@@ -34,3 +34,4 @@ Parses the sensor as **change-from-baseline**, not an absolute value, and emits 
 The baseline only adapts while `OK`, so a slow leak can't drag it up and hide itself.
 A dead or disagreeing sensor is a `FAULT`, never an "all clear". Tune via env vars
 (top of `gas_monitor.py`): `GAS_T_HIGH`, `GAS_WARMUP_S`, `GAS_DEBOUNCE_N`, `GAS_VREF`, etc.
+

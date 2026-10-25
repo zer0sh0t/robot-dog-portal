@@ -239,3 +239,4 @@ if __name__ == "__main__":
             sys.exit(1)
         print(f"[{'ADS1115' if a.ads else 'PCF8591'}] reading {I2C_BUS} @ {hex(I2C_ADDR)}", flush=True)
         run(s, once=a.once)
+
