@@ -36,15 +36,39 @@ T_LOW        = float(os.environ.get("GAS_T_LOW", "0.12"))    # fall below +12% t
 DEBOUNCE_N   = int(os.environ.get("GAS_DEBOUNCE_N", "6"))    # consecutive hot samples to fire
 DO_MID_V     = float(os.environ.get("GAS_DO_MID_V", "1.5"))  # DO < this = LOW = gas trip
 RAIL_LO_V    = float(os.environ.get("GAS_RAIL_LO_V", "0.02"))# AO at/below = shorted/low rail
-RAIL_HI_V    = float(os.environ.get("GAS_RAIL_HI_V", "5.9")) # AO at/above = high rail
-STUCK_STD_V  = float(os.environ.get("GAS_STUCK_STD_V", "0.0015"))  # AO stddev below = dead/flat
+RAIL_HI_V    = float(os.environ.get("GAS_RAIL_HI_V", "4.98"))# AO at/above = high rail (8-bit max = 5.0V)
 STUCK_WIN    = int(os.environ.get("GAS_STUCK_WIN", "120"))   # samples in the stuck-check window
+I2C_BUS      = os.environ.get("GAS_I2C_BUS", "/dev/i2c-1")
+I2C_ADDR     = int(os.environ.get("GAS_I2C_ADDR", "0x48"), 0)
+VREF         = float(os.environ.get("GAS_VREF", "5.0"))      # PCF8591 reference (= its VCC)
 LOGFILE      = os.environ.get("GAS_LOG", os.path.join(os.path.dirname(os.path.abspath(__file__)), "gas_log.jsonl"))
 
 
 # ---- sensor back-ends ------------------------------------------------------
-class RealSensor:
-    """ADS1115: channel 0 = MQ-2 AO, channel 1 = MQ-2 DO."""
+class PCF8591Sensor:
+    """PCF8591 8-bit ADC (default). AIN0 = MQ-2 AO, AIN1 = MQ-2 DO.
+    Pure stdlib raw I2C - no external libraries needed.
+    Protocol: write the control byte to pick the channel, then read 2 bytes;
+    the PCF8591's first byte is the PREVIOUS conversion (stale), so use the 2nd.
+    Raw is 0-255; we scale to volts (raw/255*VREF) so the pipeline is uniform."""
+    def __init__(self):
+        import fcntl
+        self._fd = os.open(I2C_BUS, os.O_RDWR)
+        fcntl.ioctl(self._fd, 0x0703, I2C_ADDR)   # I2C_SLAVE
+
+    def _ain(self, ch):
+        os.write(self._fd, bytes([ch & 0x03]))    # control byte selects AIN0..3
+        return os.read(self._fd, 2)[1]            # discard stale 1st byte
+
+    def read(self):
+        # may raise OSError on an I2C glitch; caller treats that as a fault
+        ao = self._ain(0) / 255.0 * VREF
+        do = self._ain(1) / 255.0 * VREF
+        return ao, do
+
+
+class AdsSensor:
+    """ADS1115 16-bit ADC (--ads). A0 = MQ-2 AO, A1 = MQ-2 DO."""
     def __init__(self):
         import board, busio
         from adafruit_ads1x15.ads1115 import ADS1115
@@ -56,7 +80,6 @@ class RealSensor:
         self._do = AnalogIn(ads, 1)
 
     def read(self):
-        # may raise OSError on an I2C glitch; caller treats that as a fault
         return self._ao.voltage, self._do.voltage
 
 
@@ -111,8 +134,8 @@ def run(sensor, once=False):
             fault = "AO railed low (shorted/disconnected)"
         elif ao_v >= RAIL_HI_V:
             fault = "AO railed high (wiring)"
-        elif not warming and len(recent) >= STUCK_WIN and _std(recent) < STUCK_STD_V:
-            fault = "AO flat (dead/disconnected sensor)"
+        elif not warming and len(recent) >= STUCK_WIN and max(recent) == min(recent):
+            fault = "AO frozen (dead/disconnected sensor)"
 
         # --- state machine ---------------------------------------------------
         dev = None
@@ -197,7 +220,8 @@ def _r(x):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--sim", action="store_true", help="run with a synthetic signal, no hardware")
+    ap.add_argument("--sim", action="store_true", help="synthetic signal, no hardware")
+    ap.add_argument("--ads", action="store_true", help="use an ADS1115 instead of the default PCF8591")
     ap.add_argument("--once", action="store_true", help="single reading then exit (for tests)")
     a = ap.parse_args()
     if a.sim:
@@ -205,10 +229,13 @@ if __name__ == "__main__":
         run(SimSensor(), once=a.once)
     else:
         try:
-            s = RealSensor()
+            s = AdsSensor() if a.ads else PCF8591Sensor()
         except Exception as e:
-            print(f"ADS1115 not available ({e}).\nInstall:  pip install adafruit-circuitpython-ads1x15"
-                  f"\nEnable I2C: sudo raspi-config > Interface > I2C > on, then i2cdetect -y 1 (expect 0x48)"
-                  f"\nOr test the logic with:  python3 gas_monitor.py --sim", file=sys.stderr)
+            chip = "ADS1115" if a.ads else "PCF8591"
+            print(f"{chip} not available ({e}).\n"
+                  f"Enable I2C: sudo raspi-config > Interface > I2C > on\n"
+                  f"PCF8591 needs no library (raw I2C at 0x48 on /dev/i2c-1).\n"
+                  f"Test the logic with:  python3 gas_monitor.py --sim", file=sys.stderr)
             sys.exit(1)
+        print(f"[{'ADS1115' if a.ads else 'PCF8591'}] reading {I2C_BUS} @ {hex(I2C_ADDR)}", flush=True)
         run(s, once=a.once)
