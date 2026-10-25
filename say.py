@@ -51,3 +51,4 @@ def main():
     print(f"speak[{i}] preset={PRESET or 'default'} audio={audio_ok}: {text}")
 
 if __name__ == "__main__": main()
+

@@ -13,6 +13,9 @@ Run:  python3 server.py            (binds tailscale ip :8088)
       PORTAL_BIND=0.0.0.0 python3 server.py   (all ifaces - avoid; tailnet-only is safer)
 """
 import http.server, socketserver, json, os, subprocess, threading, time, urllib.request, urllib.parse, ssl
+import shlex
+from sensor_state import SensorState
+from reasoning import from_sensors
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RT   = os.path.join(HERE, "runtime")
@@ -27,6 +30,52 @@ PORT  = int(os.environ.get("PORTAL_PORT", "8088"))
 CAM_TOPIC = os.environ.get("PUPPY_CAM_TOPIC", "/usb_cam_striker/image_raw")
 # LOCAL=1 when the portal runs ON the dog itself: run commands locally (no ssh-to-self)
 LOCAL = os.environ.get("PUPPY_LOCAL") == "1"
+SENSORS = SensorState(float(os.environ.get("PORTAL_SENSOR_STALE_SECONDS", "10")),
+                      os.environ.get("PUPPY_SMOKE_UNIT", "raw"))
+
+
+def watch_fire_sensors():
+    """Stream ROS subscriber callbacks through the existing local/SSH Docker bridge."""
+    config = {
+        "smoke": [os.environ.get("PUPPY_SMOKE_TOPIC", "/smoke"), "std_msgs/Float32"],
+        "temperature": [os.environ.get("PUPPY_TEMPERATURE_TOPIC", "/temperature"),
+                        os.environ.get("PUPPY_TEMPERATURE_TYPE", "sensor_msgs/Temperature")],
+        "smoke_detected": [os.environ.get("PUPPY_SMOKE_DETECTED_TOPIC", "/smoke_detected"), "std_msgs/Bool"],
+        "camera": [os.environ.get("PUPPY_CAMERA_ALERT_TOPIC", "/camera_fire_detected"), "std_msgs/Bool"],
+        "fire_sensor_fault": [os.environ.get("PUPPY_SENSOR_FAULT_TOPIC", "/fire_sensor_fault"), "std_msgs/Bool"],
+        "fire_alert": [os.environ.get("PUPPY_FIRE_ALERT_TOPIC", "/fire_alert"), "std_msgs/Bool"],
+    }
+    if config["temperature"][1] not in ("sensor_msgs/Temperature", "std_msgs/Float32"):
+        raise ValueError("PUPPY_TEMPERATURE_TYPE must be sensor_msgs/Temperature or std_msgs/Float32")
+    with open(os.path.join(HERE, "fire_sensors.py")) as f:
+        script = f.read()
+    inner = ('source /opt/ros/noetic/setup.bash; '
+             'source /home/ubuntu/puppypi/devel/setup.bash 2>/dev/null; '
+             'export ROS_MASTER_URI=http://localhost:11311; exec python3 -u -c '
+             + shlex.quote(script) + ' ' + shlex.quote(json.dumps(config)))
+    command = 'docker exec ' + shlex.quote(os.environ.get("PUPPY_ROS_CONTAINER", "puppypi")) + ' bash -lc ' + shlex.quote(inner)
+    args = (["bash", "-lc", command] if LOCAL else
+            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8",
+             "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=2",
+             f"pi@{ROBOT}", command])
+    while True:
+        process = None
+        try:
+            process = subprocess.Popen(args, stdout=subprocess.PIPE, text=True)
+            for line in process.stdout:
+                try:
+                    message = json.loads(line)
+                    SENSORS.update(message["sensor"], message["value"])
+                except (ValueError, KeyError, TypeError):
+                    continue
+        except OSError as exc:
+            print(f"sensor bridge: {exc}", flush=True)
+        finally:
+            SENSORS.disconnect()
+            if process is not None:
+                process.stdout.close()
+                process.wait()
+        time.sleep(3)
 
 os.makedirs(RT, exist_ok=True)
 
@@ -113,8 +162,9 @@ class H(http.server.BaseHTTPRequestHandler):
         if p == "/state.json":
             telem = json.load(open(TELEM)) if os.path.exists(TELEM) else {}
             say=[{"id":m.get("id",i),"text":m.get("text",""),"audio":m.get("audio",False)} for i,m in enumerate(tail_jsonl(SAY, 80))]
+            sensors = SENSORS.snapshot()
             st = {"ts":time.time(),"estop":os.path.exists(ESTOP),
-                  "telemetry":telem,"feed":tail_jsonl(THINK),"say":say}
+                  "telemetry":telem,"sensors":sensors,"hazard":from_sensors(sensors),"feed":tail_jsonl(THINK),"say":say}
             self._send(200,"application/json", json.dumps(st)); return
         if p == "/camstream":
             try:
@@ -185,6 +235,7 @@ class H(http.server.BaseHTTPRequestHandler):
         self._send(404,"text/plain","not found")
 
 if __name__ == "__main__":
+    threading.Thread(target=watch_fire_sensors, daemon=True).start()
     threading.Thread(target=poll_telemetry, daemon=True).start()
     socketserver.ThreadingTCPServer.allow_reuse_address = True
     socketserver.ThreadingTCPServer.daemon_threads = True
@@ -196,3 +247,4 @@ if __name__ == "__main__":
         httpd.socket=ctx.wrap_socket(httpd.socket, server_side=True); scheme="https"
     print(f"portal on {scheme}://{BIND}:{PORT}")
     httpd.serve_forever()
+

@@ -21,3 +21,4 @@ while true; do
     echo "$now" > "$OFFSET"
   fi
 done
+
