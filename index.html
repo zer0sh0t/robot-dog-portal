@@ -26,10 +26,33 @@ header b{font-size:16px}#conn{margin-left:auto;font-size:13px;color:var(--dim)}
 #estop:active{transform:translateY(3px);box-shadow:none}
 #estop.tripped{background:#5a1a22;box-shadow:0 4px 0 #3a1016}
 #clear{display:none;width:100%;margin-top:8px;padding:11px;background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:10px}
+
+#fire-panel[data-state="active"]{border-color:var(--bad)}
+#fire-panel[data-state="clear"]{border-color:var(--ok)}
+#alarm-state{font-size:24px;font-weight:800}
+#fire-panel[data-state="active"] #alarm-state{color:var(--bad)}
+#fire-panel[data-state="clear"] #alarm-state{color:var(--ok)}
+#fire-panel[data-state="unknown"] #alarm-state{color:var(--warn)}
+.sensor-note{font-size:12px;color:var(--dim);margin-top:4px}
+#alarm-detail{margin:4px 0 12px;color:var(--dim)}
+@media(max-width:420px){.sensor-grid{grid-template-columns:1fr}}
 </style></head><body>
 <header><b>striker</b><span style="color:var(--dim)">· robot dog control</span>
   <span id="conn"><span class="dot" id="cdot"></span><span id="ctxt">connecting…</span></span></header>
 <div class="wrap">
+  <section class="card" id="fire-panel" data-state="unknown" aria-labelledby="fire-heading">
+    <h2 id="fire-heading">Fire monitoring</h2><div class="body">
+      <div role="status" aria-live="polite" aria-atomic="true">
+        <div id="alarm-state">WAITING FOR DATA</div>
+        <p id="alarm-detail">Waiting for smoke, temperature, and alarm topics.</p>
+      </div>
+      <div class="tel sensor-grid">
+        <div><div class="k">Smoke level</div><div class="v" id="smoke-value">–</div><p class="sensor-note" id="smoke-status">No reading</p></div>
+        <div><div class="k">Temperature</div><div class="v" id="temperature-value">–</div><p class="sensor-note" id="temperature-status">No reading</p></div>
+      </div>
+      <p class="sensor-note" id="alert-status">Alarm topic: waiting</p>
+    </div>
+  </section>
   <div class="card"><h2>Camera</h2><img id="cam" src="/camstream" alt="camera"></div>
   <div class="card"><h2>Telemetry</h2><div class="body"><div class="tel">
     <div><div class="k">Battery</div><div class="v" id="batt">–</div></div>
@@ -53,9 +76,36 @@ header b{font-size:16px}#conn{margin-left:auto;font-size:13px;color:var(--dim)}
 </div>
 <script>
 let spokenMax=-1;
+function renderSensors(sensors, reachable=true){
+  const panel=document.getElementById('fire-panel');
+  const state=reachable && ['active','clear'].includes(sensors?.alarm)?sensors.alarm:'unknown';
+  panel.dataset.state=state;
+  document.getElementById('alarm-state').textContent=state==='active'?'FIRE ALERT':state==='clear'?'NO FIRE ALERT':'ALARM STATE UNKNOWN';
+  document.getElementById('alarm-detail').textContent=!reachable?'Portal connection lost. Current sensor and alarm states are unavailable.':
+    state==='active'?'The robot reported a fire alert. Check the scene and follow your response procedure.':
+    state==='clear'?'The robot reports no fire alert; all monitoring topics are live.':'Monitoring data is missing or stale. Check the sensors and ROS publishers.';
+  for(const name of ['smoke','temperature']){
+    const reading=sensors?.[name];
+    const live=reachable && reading?.fresh;
+    document.getElementById(name+'-value').textContent=live && Number.isFinite(reading.value)?reading.value.toFixed(1)+' '+(reading.unit||''):'–';
+    document.getElementById(name+'-status').textContent=!reachable?'Connection lost':!reading || reading.value==null?'Waiting for first reading':
+      live?'Live · updated '+reading.age_s+'s ago':'Stale · last reading '+reading.value+' '+(reading.unit||'');
+  }
+  const alert=sensors?.fire_alert;
+  document.getElementById('alert-status').textContent=!reachable?'Alarm topic: connection lost':
+    !alert || alert.value==null?'Alarm topic: waiting':
+    (alert.fresh?'Alarm topic: live':'Alarm topic: stale')+' · last reported '+(alert.value?'ACTIVE':'clear');
+}
+let lastSensors=null;
+let lastStateAt=0;
+// Also invalidate the panel if a request hangs or the tab resumes after suspension.
+setInterval(()=>{if(lastStateAt && Date.now()-lastStateAt>5000)renderSensors(lastSensors,false);},1000);
 async function tick(){
   try{
-    const s=await (await fetch('/state.json',{cache:'no-store'})).json();
+    const response=await fetch('/state.json',{cache:'no-store',signal:AbortSignal.timeout(4000)});
+    if(!response.ok)throw new Error('State request failed');
+    const s=await response.json();
+    lastSensors=s.sensors;lastStateAt=Date.now();renderSensors(lastSensors);
     document.getElementById('cdot').className='dot on';
     document.getElementById('ctxt').textContent='portal live';
     const t=s.telemetry||{};
@@ -82,7 +132,7 @@ async function tick(){
     b.classList.toggle('tripped',!!s.estop);
     b.textContent=s.estop?'■ E-STOPPED':'■ E-STOP';
     document.getElementById('clear').style.display=s.estop?'block':'none';
-  }catch(e){document.getElementById('cdot').className='dot';document.getElementById('ctxt').textContent='portal unreachable';}
+  }catch(e){renderSensors(lastSensors,false);document.getElementById('cdot').className='dot';document.getElementById('ctxt').textContent='portal unreachable';}
 }
 async function fire(){navigator.vibrate&&navigator.vibrate(80);await fetch('/estop',{method:'POST'});tick();}
 async function clr(){await fetch('/estop/clear',{method:'POST'});tick();}
@@ -118,6 +168,6 @@ async function tryVoice(preset){
     if(j.id!=null){ spokenMax=Math.max(spokenMax,j.id); await playId(j.id); st.textContent=preset?('playing voice '+preset):'playing Piper voice'; }
   }catch(e){ st.textContent='synth failed: '+e; }
 }
-setInterval(tick,600);tick();
+async function poll(){await tick();setTimeout(poll,600);}poll();
 
 </script></body></html>
