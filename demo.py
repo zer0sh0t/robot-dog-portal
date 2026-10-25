@@ -98,8 +98,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path in ("/", "/index.html"):
             self.send(200, "text/html", (ROOT / "index.html").read_bytes())
         elif path == "/camstream":
-            image = ROOT / "demo-assets" / f"{self.server.demo.image}.svg"
-            self.send(200, "image/svg+xml", image.read_bytes())
+            image = ROOT / "demo-assets" / f"{self.server.demo.image}-scene.png"
+            self.send(200, "image/png", image.read_bytes())
+        elif path in ("/demo-assets/clear-scene.png", "/demo-assets/smoke-scene.png"):
+            self.send(200, "image/png", (ROOT / path.lstrip("/")).read_bytes())
         elif path in ("/demo-assets/clear.svg", "/demo-assets/smoke.svg"):
             self.send(200, "image/svg+xml", (ROOT / path.lstrip("/")).read_bytes())
         else:

@@ -68,7 +68,7 @@ def interpret(reading, updated_at, now, image_name):
         "threshold_v": round(BASELINE * (1 + ALARM_RISE), 4),
         "age_s": None if age is None else round(age, 1),
         "sample_id": updated_at,
-        "image_url": f"/demo-assets/{image_name}.svg",
+        "image_url": f"/demo-assets/{image_name}-scene.png",
     }
 
 

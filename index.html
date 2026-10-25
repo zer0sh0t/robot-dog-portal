@@ -27,7 +27,7 @@ p{margin:4px 0}.card,details{background:var(--panel);border:1px solid var(--line
 <header><b>SafeScout</b><span>Striker · PuppyPi</span><span id="demo-badge" class="badge" hidden>Demo</span><span id="conn"><span id="cdot"></span><span id="ctxt">Connecting…</span></span></header>
 <main class="wrap">
   <div class="evidence">
-    <section class="card"><h2>Camera</h2><div class="camera-box"><img id="cam" alt="Robot camera" hidden><span id="camera-empty">No image available</span></div></section>
+    <section class="card"><h2>Camera <span id="camera-label" style="font-weight:400;color:var(--dim)"></span></h2><div class="camera-box"><img id="cam" alt="Robot camera" hidden><span id="camera-empty">No image available</span></div></section>
     <section class="card"><h2>Sensor trend <span style="color:var(--dim);font-weight:400">· V</span></h2>
       <svg id="trend" viewBox="0 0 480 180" role="img" aria-label="Recent sensor voltage readings">
         <g stroke="#e0e3e6" stroke-width="1"><path d="M42 25H460 M42 85H460 M42 145H460"/></g>
@@ -53,7 +53,7 @@ p{margin:4px 0}.card,details{background:var(--panel);border:1px solid var(--line
       <p>Detector alert: <span id="fire_alert-status">Unavailable</span> · Detector fault: <span id="fire_sensor_fault-status">Unavailable</span></p>
       <p>Camera candidate: <span id="camera-status">Unavailable</span> · Smoke comparator: <span id="smoke_detected-status">Unavailable</span></p>
       <p id="hazard-values"></p><p id="hazard-explanation"></p><p id="hazard-engine"></p>
-      <div id="demo-details" hidden><p>Sensor readings and image annotations are simulated. No camera image is available. Recommendations are not sent to the robot.</p><p>Any manually controlled movement video illustrates the intended response, not autonomous detection.</p>
+      <div id="demo-details" hidden><p>Sensor readings are simulated. Camera samples are AI-generated illustrations with hand-authored evidence annotations, not real robot footage or model analysis. Recommendations are not sent to the robot.</p><p>Any manually controlled movement video illustrates the intended response, not autonomous detection.</p>
       <label>Image evidence fixture <select id="demo-image" onchange="demoInput({image:this.value})"><option value="clear">No smoke annotation</option><option value="smoke">Possible smoke annotation</option></select></label></div>
       <p>Battery: <span id="batt">—</span> · Robot link: <span id="link">Unknown</span></p>
       <p>Last command: <span id="lastcmd">—</span> · E-stop: <span id="estat">—</span></p>
@@ -166,6 +166,15 @@ function showDemo(state) {
   if (state.demo && !demoMode) setupDemo();
   document.getElementById("scout").hidden = false;
   const hazard = state.hazard;
+  if (state.demo && hazard.image_url) {
+    const camera = document.getElementById('cam');
+    camera.onload = () => { camera.hidden = false; document.getElementById('camera-empty').hidden = true; };
+    camera.onerror = () => { camera.hidden = true; document.getElementById('camera-empty').hidden = false; };
+    camera.alt = hazard.image_url.includes('smoke') ? 'Generated sample: possible smoke near utility cabinet' : 'Generated sample: clear utility corridor';
+    if (camera.getAttribute('src') !== hazard.image_url) camera.src = hazard.image_url;
+    setText('camera-label', '· Generated sample');
+  }
+
   const offline = hazard.status === 'FAULT';
   const messages = {
     OK: 'No elevated reading detected.',

@@ -62,9 +62,11 @@ values from the live bridge.
   This is an explicitly labeled fallback, **not AI vision**. No callable Opus or
   other language-model integration was found in the repo; the external tmux voice
   bridge is not a model API and is not invoked by the demo.
-- No project footage or photograph is included. Camera shows **No image available**
-  in demo mode. The fixture selector remains in Details to demonstrate that image
-  context changes the explanation without changing sensor calibration.
+- Camera displays two AI-generated sample images of the same utility corridor,
+  clear and with possible smoke. They are labeled **Generated sample**, not live
+  footage or Replay. The fixture selector in Details changes the image and its
+  hand-authored context without changing sensor calibration. These pictures are
+  presentation assets, not evidence of actual robot observations.
 - The ROS camera detector is a color heuristic, not a trained model. Its candidate
   means a flame-colored region, not confirmed fire or measured temperature.
 - All reasoning actions are recommendations. No robot commands or reports are sent.

@@ -48,7 +48,7 @@ class CompleteFlowTest(unittest.TestCase):
 
     def test_complete_flow(self):
         self.assertIn(b'id="scout"', self.request('/'))
-        self.assertIn(b'<svg', self.request('/camstream'))
+        self.assertTrue(self.request('/camstream').startswith(b'\x89PNG'))
         ok = json.loads(self.request('/demo', {'scenario': 'OK', 'image': 'clear'}))['hazard']
         self.assertEqual(ok['message'], 'No elevated reading detected.')
         self.assertEqual(ok['status'], 'OK')
@@ -56,7 +56,7 @@ class CompleteFlowTest(unittest.TestCase):
         self.assertEqual(alarm['status'], 'ALARM')
         self.assertEqual(alarm['proposed_action'], 'STOP_AND_REPORT')
         self.assertIn('possible smoke', alarm['explanation'])
-        self.assertIn(b'<svg', self.request(alarm['image_url']))
+        self.assertTrue(self.request(alarm['image_url']).startswith(b'\x89PNG'))
         clear = json.loads(self.request('/demo', {'image': 'clear'}))['hazard']
         self.assertNotEqual(alarm['explanation'], clear['explanation'])
         self.request('/demo', {'scenario': 'FAULT'})
