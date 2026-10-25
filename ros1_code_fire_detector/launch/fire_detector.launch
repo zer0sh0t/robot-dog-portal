@@ -1,0 +1,22 @@
+<launch>
+  <arg name="gpio" default="false" />
+  <arg name="smoke_pin" default="27" />
+  <arg name="smoke_active_low" default="true" />
+  <arg name="camera" default="true" />
+  <arg name="image_topic" default="/camera/image_raw" />
+  <arg name="min_area_ratio" default="0.01" />
+  <node pkg="ros1_fire_detector" type="gpio_sensors.py" name="smoke_gpio_sensor" output="screen" if="$(arg gpio)">
+    <param name="smoke_pin" value="$(arg smoke_pin)" />
+    <param name="smoke_active_low" value="$(arg smoke_active_low)" />
+  </node>
+  <node pkg="ros1_fire_detector" type="camera_fire_detector.py" name="camera_fire_detector" output="screen" if="$(arg camera)">
+    <param name="image_topic" value="$(arg image_topic)" />
+    <param name="min_area_ratio" value="$(arg min_area_ratio)" />
+    <param name="max_image_age" value="2.0" />
+  </node>
+  <node pkg="ros1_fire_detector" type="fire_detector.py" name="fire_detector" output="screen" required="true">
+    <param name="timeout" value="2.0" />
+    <param name="confirm_seconds" value="0.5" />
+    <param name="clear_seconds" value="3.0" />
+  </node>
+</launch>
